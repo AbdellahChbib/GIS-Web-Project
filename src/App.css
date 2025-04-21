@@ -1,0 +1,91 @@
+#root {
+  max-width: 1280px;
+  margin: 0 auto;
+  /* padding: 2rem; */
+  text-align: center;
+}
+
+.logo {
+  height: 6em;
+  padding: 1.5em;
+  will-change: filter;
+  transition: filter 300ms;
+}
+.logo:hover {
+  filter: drop-shadow(0 0 2em #646cffaa);
+}
+.logo.react:hover {
+  filter: drop-shadow(0 0 2em #61dafbaa);
+}
+
+@keyframes logo-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  a:nth-of-type(2) .logo {
+    animation: logo-spin infinite 20s linear;
+  }
+}
+
+.card {
+  padding: 2em;
+}
+
+.read-the-docs {
+  color: #888;
+}
+main {
+  padding-top: 80px; /* même hauteur que la navbar */
+  padding-left: 2rem;
+  padding-right: 2rem;
+}
+
+.main-content {
+  padding-top: 80px; /* pour laisser la navbar visible */
+  text-align: center;
+}
+
+.ehtp-img {
+  width: 100%;
+  height: auto; /* garde les proportions originales */
+  max-height: 400px; /* ou 50vh, selon ton besoin */
+  object-fit: cover;
+  display: block; /* évite les petits espaces blancs */
+  margin-top:70px;
+}
+.full-banner {
+  width: 100vw;
+  margin-left: calc(-50vw + 50%);
+}
+
+.banner-container {
+  position: relative;
+  width: 100%;
+  height: 300px; /* ou adapte selon l’image */
+  overflow: hidden;
+}
+
+.ehtp-banner {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.banner-title {
+  position: absolute;
+  top: 45%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 10.5rem;
+  font-family: 'Merriweather', serif;  color: white;
+  font-weight: 700;
+  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.7);
+  margin: 0;
+}
