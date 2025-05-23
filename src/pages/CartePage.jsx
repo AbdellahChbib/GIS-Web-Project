@@ -206,11 +206,7 @@ function CartePage() {
           {loading ? 'Chargement...' : (is3D ? 'Passer en 2D' : 'Passer en 3D')}
         </button>
         
-        {loading && (
-          <span style={{ color: '#666' }}>
-            Chargement du tileset 3D...
-          </span>
-        )}
+        
         
         {error && (
           <span style={{ color: '#ff6b6b', fontSize: '14px' }}>
@@ -218,11 +214,7 @@ function CartePage() {
           </span>
         )}
         
-        {tileset && !loading && (
-          <span style={{ color: '#4ecdc4', fontSize: '14px' }}>
-            ✓ Tileset 3D chargé
-          </span>
-        )}
+         
       </div>
       
       <div 
