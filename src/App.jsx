@@ -27,6 +27,7 @@ function App() {
       <Routes>
         <Route path="/" element={<HomePage />} />
         <Route path="/carte" element={<CartePage />} />
+        
       </Routes>
     </Router>
   );
