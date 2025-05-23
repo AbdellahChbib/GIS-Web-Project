@@ -1,56 +1,57 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from '/vite.svg'
-import './App.css'
+import React from 'react';
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import './App.css';
+import Hero from './components/Hero';
+import About from './components/About';
+import CardGrid from './components/CardGrid';
+import Stats from './components/Stats';
+import Contact from './components/Contact';
+import Footer from './components/Footer';
 import Navbar from './components/Navbar';
+import LoginPage from './pages/LoginPage';
+import RegisterPage from './pages/RegisterPage';
+import { AuthProvider } from './contexts/AuthContext';
 import ehtpImage from './assets/EHTP-image.jpg';
 
-/* function App() {
-  const [count, setCount] = useState(0)
-
+function HomePage() {
   return (
     <>
-      <div>
-        <a href="https://vite.dev" target="_blank">
-          <img src={viteLogo} className="logo" alt="Vite logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
-      </div>
-      <h1>Vite + React</h1>
-      <div className="card">
-        <button onClick={() => setCount((count) => count + 1)}>
-          count is {count}
-        </button>
-        <p>
-          Edit <code>src/App.jsx</code> and save to test HMR
-        </p>
-      </div>
-      <p className="read-the-docs">
-        Click on the Vite and React logos to learn more
-      </p>
-    </>
-  )
-} */
-
-
-function App() {
-  return (
-    <div>
-      <Navbar />
-
       <div className="full-banner">
         <img src={ehtpImage} alt="Banner" className="ehtp-img" />
         <h1 className="banner-title">EHTP</h1>
       </div>
-
-      <main className="main-content">
-        <h1>Bienvenue sur GIS Web</h1>
-        <p>Contenu de la page...</p>
-      </main>
-
-    </div>
+      <Hero />
+      <About />
+      <CardGrid />
+      <Stats />
+      <Contact />
+    </>
   );
 }
+
+function App() {
+  return (
+    <Router>
+      <AuthProvider>
+        <div className="app">
+          <Routes>
+            <Route path="/login" element={<LoginPage />} />
+            <Route path="/register" element={<RegisterPage />} />
+            <Route
+              path="/"
+              element={
+                <>
+                  <Navbar />
+                  <HomePage />
+                  <Footer />
+                </>
+              }
+            />
+          </Routes>
+        </div>
+      </AuthProvider>
+    </Router>
+  );
+}
+
 export default App;

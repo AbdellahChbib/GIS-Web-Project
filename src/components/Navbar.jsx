@@ -1,12 +1,20 @@
 import { useState } from 'react';
-import { FiMenu, FiX, FiHome, FiMap, FiDatabase, FiMail, FiSearch, FiUser, FiGlobe, FiBell } from 'react-icons/fi';
+import { useNavigate } from 'react-router-dom';
+import { FiMenu, FiX, FiHome, FiMap, FiDatabase, FiMail, FiSearch, FiUser, FiGlobe } from 'react-icons/fi';
+import { useAuth } from '../contexts/AuthContext';
 import ehtpLogo from '../assets/EHTP_1.png';
 import '../styles/Navbar.css';
 
 function Navbar() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const { user, logout } = useAuth();
+  const navigate = useNavigate();
+
+  const handleLogout = () => {
+    logout();
+    navigate('/');
+  };
 
   return (
     <nav className="navbar">
@@ -18,9 +26,9 @@ function Navbar() {
         <div className="navbar-controls">
           <div className="search-container">
             <FiSearch className="search-icon" />
-            <input
-              type="text"
-              placeholder="Rechercher..."
+            <input 
+              type="text" 
+              placeholder="Rechercher..." 
               className="search-input"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
@@ -54,9 +62,7 @@ function Navbar() {
             </li>
           </ul>
 
-
           <div className="navbar-actions">
-
             <div className="language-selector">
               <FiGlobe className="action-icon" />
               <select className="language-dropdown">
@@ -65,28 +71,47 @@ function Navbar() {
               </select>
             </div>
 
-            {isLoggedIn ? (
+            {user ? (
               <div className="user-profile">
-                <img
-                  src="https://via.placeholder.com/40"
-                  alt="Profile"
-                  className="profile-picture"
+                <img 
+                  src="https://via.placeholder.com/40" 
+                  alt="Profile" 
+                  className="profile-picture" 
                 />
                 <div className="profile-menu">
+                  <div className="user-info">
+                    <span className="user-name">{user.name}</span>
+                    <span className="user-role">
+                      {user.role === 'admin' ? 'Administrateur' :
+                       user.role === 'teacher' ? 'Enseignant' : 'Élève'}
+                    </span>
+                  </div>
                   <a href="#account">Mon Compte</a>
-                  <a href="#logout">Déconnexion</a>
+                  <button onClick={handleLogout} className="logout-btn">
+                    Déconnexion
+                  </button>
                 </div>
               </div>
             ) : (
               <div className="auth-buttons">
-                <button className="login-btn">Connexion</button>
-                <button className="signup-btn">Inscription</button>
+                <button 
+                  className="login-btn"
+                  onClick={() => navigate('/login')}
+                >
+                  Connexion
+                </button>
+                <button 
+                  className="signup-btn"
+                  onClick={() => navigate('/register')}
+                >
+                  Inscription
+                </button>
               </div>
             )}
           </div>
         </div>
 
-        <button
+        <button 
           className="mobile-menu-btn"
           onClick={() => setIsMenuOpen(!isMenuOpen)}
         >

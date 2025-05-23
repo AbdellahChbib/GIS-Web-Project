@@ -1,0 +1,227 @@
+:root {
+  --primary-gradient: linear-gradient(135deg, #1358a1, #8abeeb);
+  --text-gradient: linear-gradient(135deg, #ffffff, #e3f0ff);
+  --glass-bg: rgba(255, 255, 255, 0.1);
+  --box-shadow: 0 8px 32px rgba(31, 38, 135, 0.15);
+  --text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  --transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.hero {
+  position: relative;
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 100px 20px;
+  overflow: hidden;
+  background: var(--primary-gradient);
+  opacity: 0;
+  transform: translateY(20px);
+  transition: var(--transition);
+}
+
+.hero.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.heroBackground {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: url('/hero-bg.jpg') center/cover no-repeat;
+  z-index: 0;
+}
+
+.overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    135deg,
+    rgba(19, 88, 161, 0.9),
+    rgba(138, 190, 235, 0.8)
+  );
+  backdrop-filter: blur(5px);
+}
+
+.heroContent {
+  position: relative;
+  z-index: 1;
+  max-width: 1200px;
+  width: 100%;
+  padding: 3rem;
+  border-radius: 30px;
+  background: var(--glass-bg);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  box-shadow: var(--box-shadow);
+  backdrop-filter: blur(10px);
+  animation: fadeIn 1s ease-out forwards;
+}
+
+.title {
+  font-size: 4rem;
+  line-height: 1.2;
+  margin-bottom: 2rem;
+  color: white;
+  text-shadow: var(--text-shadow);
+  opacity: 0;
+  transform: translateY(20px);
+  animation: slideUp 0.8s ease-out 0.2s forwards;
+}
+
+.highlight {
+  background: var(--text-gradient);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  font-weight: 700;
+}
+
+.description {
+  font-size: 1.4rem;
+  line-height: 1.6;
+  color: rgba(255, 255, 255, 0.9);
+  margin-bottom: 3rem;
+  max-width: 800px;
+  opacity: 0;
+  transform: translateY(20px);
+  animation: slideUp 0.8s ease-out 0.4s forwards;
+}
+
+.features {
+  display: flex;
+  gap: 2rem;
+  margin-bottom: 3rem;
+  opacity: 0;
+  transform: translateY(20px);
+  animation: slideUp 0.8s ease-out 0.6s forwards;
+}
+
+.feature {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem 1.5rem;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 15px;
+  transition: var(--transition);
+}
+
+.feature:hover {
+  transform: translateY(-5px);
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.featureIcon {
+  font-size: 1.5rem;
+  color: #fff;
+}
+
+.feature span {
+  color: white;
+  font-size: 1.1rem;
+  font-weight: 500;
+}
+
+.cta {
+  opacity: 0;
+  transform: translateY(20px);
+  animation: slideUp 0.8s ease-out 0.8s forwards;
+}
+
+.heroBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 1rem;
+  background: white;
+  color: #1358a1;
+  padding: 1rem 2rem;
+  border-radius: 50px;
+  text-decoration: none;
+  font-weight: 600;
+  font-size: 1.1rem;
+  transition: var(--transition);
+  box-shadow: 0 4px 15px rgba(255, 255, 255, 0.2);
+}
+
+.heroBtn:hover {
+  transform: translateY(-3px);
+  background: #e3f0ff;
+  box-shadow: 0 6px 20px rgba(255, 255, 255, 0.3);
+}
+
+.btnIcon {
+  font-size: 1.2rem;
+  transition: transform 0.3s ease;
+}
+
+.heroBtn:hover .btnIcon {
+  transform: translateX(5px);
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (max-width: 1024px) {
+  .heroContent {
+    padding: 2rem;
+  }
+
+  .title {
+    font-size: 3rem;
+  }
+
+  .description {
+    font-size: 1.2rem;
+  }
+}
+
+@media (max-width: 768px) {
+  .hero {
+    padding: 80px 20px;
+  }
+
+  .heroContent {
+    padding: 1.5rem;
+  }
+
+  .title {
+    font-size: 2.5rem;
+  }
+
+  .description {
+    font-size: 1.1rem;
+  }
+
+  .features {
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .feature {
+    width: 100%;
+  }
+} 
