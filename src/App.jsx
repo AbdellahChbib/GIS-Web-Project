@@ -17,6 +17,7 @@ import CartePage from './pages/CartePage';
 function HomePage() {
   return (
     <>
+      <Navbar />
       <div className="full-banner">
         <img src={ehtpImage} alt="Banner" className="ehtp-img" />
         <h1 className="banner-title">EHTP</h1>
@@ -26,6 +27,7 @@ function HomePage() {
       <CardGrid />
       <Stats />
       <Contact />
+      <Footer />
     </>
   );
 }
@@ -35,14 +37,12 @@ function App() {
     <Router>
       <AuthProvider>
         <div className="app">
-          <Navbar />
           <Routes>
             <Route path="/" element={<HomePage />} />
             <Route path="/carte" element={<CartePage />} />
             <Route path="/login" element={<LoginPage />} />
             <Route path="/register" element={<RegisterPage />} />
           </Routes>
-          <Footer />
         </div>
       </AuthProvider>
     </Router>
