@@ -12,6 +12,7 @@ import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import { AuthProvider } from './contexts/AuthContext';
 import ehtpImage from './assets/EHTP-image.jpg';
+import CartePage from './pages/CartePage';
 
 function HomePage() {
   return (
@@ -34,20 +35,14 @@ function App() {
     <Router>
       <AuthProvider>
         <div className="app">
+          <Navbar />
           <Routes>
+            <Route path="/" element={<HomePage />} />
+            <Route path="/carte" element={<CartePage />} />
             <Route path="/login" element={<LoginPage />} />
             <Route path="/register" element={<RegisterPage />} />
-            <Route
-              path="/"
-              element={
-                <>
-                  <Navbar />
-                  <HomePage />
-                  <Footer />
-                </>
-              }
-            />
           </Routes>
+          <Footer />
         </div>
       </AuthProvider>
     </Router>

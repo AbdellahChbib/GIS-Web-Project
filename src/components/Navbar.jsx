@@ -4,6 +4,8 @@ import { FiMenu, FiX, FiHome, FiMap, FiDatabase, FiMail, FiSearch, FiUser, FiGlo
 import { useAuth } from '../contexts/AuthContext';
 import ehtpLogo from '../assets/EHTP_1.png';
 import '../styles/Navbar.css';
+import { Link } from 'react-router-dom';
+
 
 function Navbar() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -37,16 +39,17 @@ function Navbar() {
 
           <ul className={`navbar-links ${isMenuOpen ? 'active' : ''}`}>
             <li>
-              <a href="#" className="nav-link hover-effect">
+              <Link to="/" className="nav-link hover-effect">
                 <FiHome className="nav-icon" />
                 Accueil
-              </a>
+              </Link>
             </li>
+
             <li>
-              <a href="#" className="nav-link hover-effect">
+              <Link to="/carte" className="nav-link hover-effect">
                 <FiMap className="nav-icon" />
                 Cartes
-              </a>
+              </Link>
             </li>
             <li>
               <a href="#" className="nav-link hover-effect">
