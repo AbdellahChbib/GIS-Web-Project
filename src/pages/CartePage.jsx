@@ -51,6 +51,7 @@ function CartePage() {
       })
     })
   }));
+  const [measureOverlays, setMeasureOverlays] = useState([]);
 
   // Fonction pour exporter la carte en image
   const exportAsImage = () => {
@@ -133,25 +134,42 @@ function CartePage() {
     return '';
   };
 
+  // Fonction pour nettoyer toutes les mesures 2D
+  const clearAllMeasurements = () => {
+    // Nettoyer la source
+    measureSource.clear();
+    
+    // Supprimer toutes les interactions de mesure
+    if (olMap) {
+      olMap.getInteractions().forEach((interaction) => {
+        if (interaction instanceof Draw) {
+          olMap.removeInteraction(interaction);
+        }
+      });
+    }
+
+    // Supprimer tous les overlays de mesure
+    measureOverlays.forEach(overlay => {
+      if (olMap) {
+        olMap.removeOverlay(overlay);
+      }
+    });
+    setMeasureOverlays([]);
+  };
+
   // Fonction pour activer la mesure 2D
   const activateMeasure2D = (type) => {
     if (!olMap) return;
 
-    // Supprimer les anciennes mesures
-    measureSource.clear();
-    
-    // Supprimer les anciennes interactions
-    olMap.getInteractions().forEach((interaction) => {
-      if (interaction instanceof Draw) {
-        olMap.removeInteraction(interaction);
-      }
-    });
-
+    // Si on clique sur le même type de mesure, on désactive
     if (type === measureType) {
+      clearAllMeasurements();
       setMeasureType(null);
       return;
     }
 
+    // Nettoyer les mesures précédentes
+    clearAllMeasurements();
     setMeasureType(type);
     
     const drawType = type === 'area' ? 'Polygon' : 'LineString';
@@ -198,6 +216,7 @@ function CartePage() {
         insertFirst: false
       });
       olMap.addOverlay(measureTooltip);
+      setMeasureOverlays(prev => [...prev, measureTooltip]);
     };
 
     createMeasureTooltip();
@@ -239,10 +258,13 @@ function CartePage() {
     if (!scene) return;
 
     // Désactiver les mesures précédentes
-    if (scene.measurementTools) {
-      scene.measurementTools.forEach(tool => tool.destroy());
+    if (scene.activeHandler) {
+      scene.activeHandler.destroy();
+      scene.activeHandler = undefined;
     }
-    scene.measurementTools = [];
+
+    // Nettoyer les entités de mesure existantes
+    scene.entities.removeAll();
 
     if (type === measureType) {
       setMeasureType(null);
@@ -251,25 +273,66 @@ function CartePage() {
 
     setMeasureType(type);
 
+    // Créer un gestionnaire d'événements pour la mesure
+    const handler = new Cesium.ScreenSpaceEventHandler(scene.canvas);
+    scene.activeHandler = handler;
+
     if (type === 'distance3D') {
-      const distanceMeasurement = new Cesium.MeasurementTools.DistanceMeasurement({
-        scene: scene,
-        units: Cesium.MeasurementUnits.METERS
-      });
-      scene.measurementTools = [distanceMeasurement];
-    } else if (type === 'area3D') {
-      const areaMeasurement = new Cesium.MeasurementTools.AreaMeasurement({
-        scene: scene,
-        units: Cesium.MeasurementUnits.SQUARE_METERS
-      });
-      scene.measurementTools = [areaMeasurement];
-    } else if (type === 'volume3D') {
-      const volumeMeasurement = new Cesium.MeasurementTools.VolumeMeasurement({
-        scene: scene,
-        units: Cesium.MeasurementUnits.CUBIC_METERS
-      });
-      scene.measurementTools = [volumeMeasurement];
+      let positions = [];
+      let polyline;
+      let label;
+
+      handler.setInputAction((click) => {
+        const cartesian = scene.camera.pickEllipsoid(
+          click.position,
+          scene.globe.ellipsoid
+        );
+
+        if (cartesian) {
+          positions.push(cartesian);
+
+          if (positions.length === 1) {
+            polyline = scene.entities.add({
+              polyline: {
+                positions: positions,
+                width: 2,
+                material: Cesium.Color.YELLOW
+              }
+            });
+          } else if (positions.length === 2) {
+            const distance = Cesium.Cartesian3.distance(positions[0], positions[1]);
+            const midpoint = Cesium.Cartesian3.midpoint(
+              positions[0],
+              positions[1],
+              new Cesium.Cartesian3()
+            );
+
+            label = scene.entities.add({
+              position: midpoint,
+              label: {
+                text: `${Math.round(distance)} m`,
+                font: '14px sans-serif',
+                fillColor: Cesium.Color.WHITE,
+                outlineColor: Cesium.Color.BLACK,
+                outlineWidth: 2,
+                style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+                verticalOrigin: Cesium.VerticalOrigin.BOTTOM
+              }
+            });
+
+            handler.removeInputAction(Cesium.ScreenSpaceEventType.LEFT_CLICK);
+          }
+        }
+      }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
     }
+
+    // Ajouter un gestionnaire de clic droit pour annuler la mesure
+    handler.setInputAction(() => {
+      scene.entities.removeAll();
+      handler.destroy();
+      scene.activeHandler = undefined;
+      setMeasureType(null);
+    }, Cesium.ScreenSpaceEventType.RIGHT_CLICK);
   };
 
   useEffect(() => {
@@ -405,8 +468,13 @@ function CartePage() {
 
     // Cleanup
     return () => {
-      if (ol3dInstance) {
-        ol3dInstance.setEnabled(false);
+      clearAllMeasurements();
+      if (ol3d) {
+        const scene = ol3d.getCesiumScene();
+        if (scene && scene.activeHandler) {
+          scene.activeHandler.destroy();
+          scene.entities.removeAll();
+        }
       }
       if (tileset && scene) {
         scene.primitives.remove(tileset);
