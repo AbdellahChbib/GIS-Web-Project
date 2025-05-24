@@ -11,6 +11,12 @@ import OLCesium from 'olcs';
 import * as Cesium from 'cesium';
 import 'cesium/Build/Cesium/Widgets/widgets.css';
 import { jsPDF } from 'jspdf';
+import Draw from 'ol/interaction/Draw';
+import { Vector as VectorLayer } from 'ol/layer';
+import { Vector as VectorSource } from 'ol/source';
+import { Circle as CircleStyle, Fill, Stroke, Style } from 'ol/style';
+import { getArea, getLength } from 'ol/sphere';
+import Overlay from 'ol/Overlay';
 
 // Configuration globale de Cesium
 window.Cesium = Cesium;
@@ -24,6 +30,27 @@ function CartePage() {
   const [error, setError] = useState(null);
   const [olMap, setOlMap] = useState(null);
   const [showExportMenu, setShowExportMenu] = useState(false);
+  const [measureType, setMeasureType] = useState(null);
+  const [showMeasureMenu, setShowMeasureMenu] = useState(false);
+  const [measureSource] = useState(new VectorSource());
+  const [measureLayer] = useState(new VectorLayer({
+    source: measureSource,
+    style: new Style({
+      fill: new Fill({
+        color: 'rgba(255, 255, 255, 0.2)'
+      }),
+      stroke: new Stroke({
+        color: '#ffcc33',
+        width: 2
+      }),
+      image: new CircleStyle({
+        radius: 7,
+        fill: new Fill({
+          color: '#ffcc33'
+        })
+      })
+    })
+  }));
 
   // Fonction pour exporter la carte en image
   const exportAsImage = () => {
@@ -93,6 +120,155 @@ function CartePage() {
     } catch (error) {
       setError('Erreur lors de l\'export en Shapefile');
       console.error('Erreur Shapefile:', error);
+    }
+  };
+
+  // Fonction pour formater la mesure
+  const formatMeasurement = (measurement, type) => {
+    if (type === 'area') {
+      return `${Math.round(measurement)} m²`;
+    } else if (type === 'length') {
+      return `${Math.round(measurement * 100) / 100} m`;
+    }
+    return '';
+  };
+
+  // Fonction pour activer la mesure 2D
+  const activateMeasure2D = (type) => {
+    if (!olMap) return;
+
+    // Supprimer les anciennes mesures
+    measureSource.clear();
+    
+    // Supprimer les anciennes interactions
+    olMap.getInteractions().forEach((interaction) => {
+      if (interaction instanceof Draw) {
+        olMap.removeInteraction(interaction);
+      }
+    });
+
+    if (type === measureType) {
+      setMeasureType(null);
+      return;
+    }
+
+    setMeasureType(type);
+    
+    const drawType = type === 'area' ? 'Polygon' : 'LineString';
+    const draw = new Draw({
+      source: measureSource,
+      type: drawType,
+      style: new Style({
+        fill: new Fill({
+          color: 'rgba(255, 255, 255, 0.2)'
+        }),
+        stroke: new Stroke({
+          color: 'rgba(0, 0, 0, 0.5)',
+          lineDash: [10, 10],
+          width: 2
+        }),
+        image: new CircleStyle({
+          radius: 5,
+          stroke: new Stroke({
+            color: 'rgba(0, 0, 0, 0.7)'
+          }),
+          fill: new Fill({
+            color: 'rgba(255, 255, 255, 0.2)'
+          })
+        })
+      })
+    });
+
+    olMap.addInteraction(draw);
+
+    let measureTooltipElement;
+    let measureTooltip;
+
+    const createMeasureTooltip = () => {
+      if (measureTooltipElement) {
+        measureTooltipElement.parentNode.removeChild(measureTooltipElement);
+      }
+      measureTooltipElement = document.createElement('div');
+      measureTooltipElement.className = 'ol-tooltip ol-tooltip-measure';
+      measureTooltip = new Overlay({
+        element: measureTooltipElement,
+        offset: [0, -15],
+        positioning: 'bottom-center',
+        stopEvent: false,
+        insertFirst: false
+      });
+      olMap.addOverlay(measureTooltip);
+    };
+
+    createMeasureTooltip();
+
+    let sketch;
+    draw.on('drawstart', (evt) => {
+      sketch = evt.feature;
+      let tooltipCoord = evt.coordinate;
+
+      sketch.getGeometry().on('change', (evt) => {
+        const geom = evt.target;
+        let measurement;
+        if (type === 'area') {
+          measurement = getArea(geom);
+          tooltipCoord = geom.getInteriorPoint().getCoordinates();
+        } else {
+          measurement = getLength(geom);
+          tooltipCoord = geom.getLastCoordinate();
+        }
+        measureTooltipElement.innerHTML = formatMeasurement(measurement, type);
+        measureTooltip.setPosition(tooltipCoord);
+      });
+    });
+
+    draw.on('drawend', () => {
+      measureTooltipElement.className = 'ol-tooltip ol-tooltip-static';
+      measureTooltip.setOffset([0, -7]);
+      sketch = null;
+      measureTooltipElement = null;
+      createMeasureTooltip();
+    });
+  };
+
+  // Fonction pour activer la mesure 3D
+  const activateMeasure3D = (type) => {
+    if (!ol3d) return;
+    
+    const scene = ol3d.getCesiumScene();
+    if (!scene) return;
+
+    // Désactiver les mesures précédentes
+    if (scene.measurementTools) {
+      scene.measurementTools.forEach(tool => tool.destroy());
+    }
+    scene.measurementTools = [];
+
+    if (type === measureType) {
+      setMeasureType(null);
+      return;
+    }
+
+    setMeasureType(type);
+
+    if (type === 'distance3D') {
+      const distanceMeasurement = new Cesium.MeasurementTools.DistanceMeasurement({
+        scene: scene,
+        units: Cesium.MeasurementUnits.METERS
+      });
+      scene.measurementTools = [distanceMeasurement];
+    } else if (type === 'area3D') {
+      const areaMeasurement = new Cesium.MeasurementTools.AreaMeasurement({
+        scene: scene,
+        units: Cesium.MeasurementUnits.SQUARE_METERS
+      });
+      scene.measurementTools = [areaMeasurement];
+    } else if (type === 'volume3D') {
+      const volumeMeasurement = new Cesium.MeasurementTools.VolumeMeasurement({
+        scene: scene,
+        units: Cesium.MeasurementUnits.CUBIC_METERS
+      });
+      scene.measurementTools = [volumeMeasurement];
     }
   };
 
@@ -224,6 +400,9 @@ function CartePage() {
 
     setOl3d(ol3dInstance);
 
+    // Ajouter la couche de mesure
+    ol2d.addLayer(measureLayer);
+
     // Cleanup
     return () => {
       if (ol3dInstance) {
@@ -312,6 +491,139 @@ function CartePage() {
           >
             3D
           </button>
+        </div>
+
+        {/* Bouton de mesure */}
+        <div style={{ position: 'relative' }}>
+          <button
+            onClick={() => setShowMeasureMenu(!showMeasureMenu)}
+            onBlur={() => setTimeout(() => setShowMeasureMenu(false), 200)}
+            style={{
+              padding: '8px 16px',
+              backgroundColor: measureType ? '#4CAF50' : '#2196F3',
+              color: 'white',
+              border: 'none',
+              borderRadius: '6px',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '5px',
+              fontWeight: 'bold'
+            }}
+          >
+            Mesurer
+            <span style={{ fontSize: '12px', marginLeft: '5px' }}>▼</span>
+          </button>
+          
+          {showMeasureMenu && (
+            <div
+              style={{
+                position: 'absolute',
+                top: '100%',
+                left: '0',
+                backgroundColor: 'white',
+                border: '1px solid #ddd',
+                borderRadius: '4px',
+                boxShadow: '0 2px 5px rgba(0,0,0,0.2)',
+                zIndex: 1000,
+                minWidth: '200px',
+                marginTop: '5px'
+              }}
+            >
+              {!is3D ? (
+                // Options de mesure 2D
+                <>
+                  <button
+                    onClick={() => activateMeasure2D('length')}
+                    style={{
+                      display: 'block',
+                      width: '100%',
+                      padding: '8px 16px',
+                      border: 'none',
+                      borderBottom: '1px solid #eee',
+                      backgroundColor: measureType === 'length' ? '#e3f2fd' : 'white',
+                      color: '#333',
+                      textAlign: 'left',
+                      cursor: 'pointer',
+                      fontSize: '14px'
+                    }}
+                  >
+                    Mesurer une distance
+                  </button>
+                  <button
+                    onClick={() => activateMeasure2D('area')}
+                    style={{
+                      display: 'block',
+                      width: '100%',
+                      padding: '8px 16px',
+                      border: 'none',
+                      backgroundColor: measureType === 'area' ? '#e3f2fd' : 'white',
+                      color: '#333',
+                      textAlign: 'left',
+                      cursor: 'pointer',
+                      fontSize: '14px'
+                    }}
+                  >
+                    Mesurer une surface
+                  </button>
+                </>
+              ) : (
+                // Options de mesure 3D
+                <>
+                  <button
+                    onClick={() => activateMeasure3D('distance3D')}
+                    style={{
+                      display: 'block',
+                      width: '100%',
+                      padding: '8px 16px',
+                      border: 'none',
+                      borderBottom: '1px solid #eee',
+                      backgroundColor: measureType === 'distance3D' ? '#e3f2fd' : 'white',
+                      color: '#333',
+                      textAlign: 'left',
+                      cursor: 'pointer',
+                      fontSize: '14px'
+                    }}
+                  >
+                    Mesurer une distance 3D
+                  </button>
+                  <button
+                    onClick={() => activateMeasure3D('area3D')}
+                    style={{
+                      display: 'block',
+                      width: '100%',
+                      padding: '8px 16px',
+                      border: 'none',
+                      borderBottom: '1px solid #eee',
+                      backgroundColor: measureType === 'area3D' ? '#e3f2fd' : 'white',
+                      color: '#333',
+                      textAlign: 'left',
+                      cursor: 'pointer',
+                      fontSize: '14px'
+                    }}
+                  >
+                    Mesurer une surface 3D
+                  </button>
+                  <button
+                    onClick={() => activateMeasure3D('volume3D')}
+                    style={{
+                      display: 'block',
+                      width: '100%',
+                      padding: '8px 16px',
+                      border: 'none',
+                      backgroundColor: measureType === 'volume3D' ? '#e3f2fd' : 'white',
+                      color: '#333',
+                      textAlign: 'left',
+                      cursor: 'pointer',
+                      fontSize: '14px'
+                    }}
+                  >
+                    Mesurer un volume
+                  </button>
+                </>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Bouton Exporter (visible uniquement en mode 2D) */}
@@ -476,6 +788,31 @@ function CartePage() {
           marginTop: '10px'
         }}
       ></div>
+
+      {/* Styles CSS pour les tooltips de mesure */}
+      <style>
+        {`
+          .ol-tooltip {
+            position: relative;
+            background: rgba(0, 0, 0, 0.5);
+            border-radius: 4px;
+            color: white;
+            padding: 4px 8px;
+            opacity: 0.7;
+            white-space: nowrap;
+            font-size: 12px;
+          }
+          .ol-tooltip-measure {
+            opacity: 1;
+            font-weight: bold;
+          }
+          .ol-tooltip-static {
+            background-color: #ffcc33;
+            color: black;
+            border: 1px solid white;
+          }
+        `}
+      </style>
     </div>
   );
 }
