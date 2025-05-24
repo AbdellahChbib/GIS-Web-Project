@@ -197,32 +197,56 @@ function CartePage() {
       <h2>Carte de l'EHTP - 2D / 3D Switch</h2>
       
       <div style={{ margin: '10px' }}>
-        <button 
-          onClick={handleToggle} 
-          disabled={loading}
+        <div 
           style={{ 
-            padding: '10px 20px',
-            backgroundColor: is3D ? '#ff6b6b' : '#4ecdc4',
-            color: 'white',
-            border: 'none',
-            borderRadius: '5px',
-            cursor: loading ? 'not-allowed' : 'pointer',
-            opacity: loading ? 0.6 : 1,
-            marginRight: '10px'
+            display: 'inline-flex',
+            backgroundColor: '#f0f0f0',
+            borderRadius: '8px',
+            padding: '2px',
+            border: '1px solid #ddd'
           }}
         >
-          {loading ? 'Chargement...' : (is3D ? 'Passer en 2D' : 'Passer en 3D')}
-        </button>
-        
-        
+          <button 
+            onClick={handleToggle}
+            disabled={loading}
+            style={{ 
+              padding: '8px 16px',
+              backgroundColor: !is3D ? '#6b46c1' : 'transparent',
+              color: !is3D ? 'white' : '#666',
+              border: 'none',
+              borderRadius: '6px',
+              cursor: loading ? 'not-allowed' : 'pointer',
+              fontWeight: 'bold',
+              transition: 'all 0.3s ease',
+              minWidth: '60px'
+            }}
+          >
+            2D
+          </button>
+          <button 
+            onClick={handleToggle}
+            disabled={loading}
+            style={{ 
+              padding: '8px 16px',
+              backgroundColor: is3D ? '#6b46c1' : 'transparent',
+              color: is3D ? 'white' : '#666',
+              border: 'none',
+              borderRadius: '6px',
+              cursor: loading ? 'not-allowed' : 'pointer',
+              fontWeight: 'bold',
+              transition: 'all 0.3s ease',
+              minWidth: '60px'
+            }}
+          >
+            3D
+          </button>
+        </div>
         
         {error && (
           <span style={{ color: '#ff6b6b', fontSize: '14px' }}>
             {error}
           </span>
         )}
-        
-         
       </div>
       
       <div 
