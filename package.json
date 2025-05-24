@@ -12,6 +12,7 @@
   "dependencies": {
     "bootstrap": "^5.3.5",
     "cesium": "^1.129.0",
+    "jspdf": "^3.0.1",
     "ol": "^10.5.0",
     "ol-cesium": "^2.17.0",
     "olcs": "^2.22.1",

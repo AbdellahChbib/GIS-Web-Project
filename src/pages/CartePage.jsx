@@ -10,6 +10,7 @@ import { fromLonLat } from 'ol/proj';
 import OLCesium from 'olcs';
 import * as Cesium from 'cesium';
 import 'cesium/Build/Cesium/Widgets/widgets.css';
+import { jsPDF } from 'jspdf';
 
 // Configuration globale de Cesium
 window.Cesium = Cesium;
@@ -22,6 +23,78 @@ function CartePage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [olMap, setOlMap] = useState(null);
+  const [showExportMenu, setShowExportMenu] = useState(false);
+
+  // Fonction pour exporter la carte en image
+  const exportAsImage = () => {
+    if (!olMap) return;
+    
+    const canvas = document.querySelector('.ol-layer canvas');
+    if (!canvas) return;
+
+    // Créer un lien temporaire pour le téléchargement
+    const link = document.createElement('a');
+    link.download = 'carte-ehtp.png';
+    link.href = canvas.toDataURL('image/png');
+    link.click();
+    setShowExportMenu(false);
+  };
+
+  // Fonction pour exporter la carte en PDF
+  const exportAsPDF = () => {
+    if (!olMap) return;
+    
+    const canvas = document.querySelector('.ol-layer canvas');
+    if (!canvas) return;
+
+    const pdf = new jsPDF('landscape');
+    const imgData = canvas.toDataURL('image/png');
+    const imgProps = pdf.getImageProperties(imgData);
+    const pdfWidth = pdf.internal.pageSize.getWidth();
+    const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
+    
+    pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+    pdf.save('carte-ehtp.pdf');
+    setShowExportMenu(false);
+  };
+
+  // Fonction pour exporter la couche en GeoJSON
+  const exportAsGeoJSON = async () => {
+    try {
+      const response = await fetch('/geoserver/webSig/ows?service=WFS&version=1.0.0&request=GetFeature&typeName=webSig:ehtpshp&outputFormat=application/json');
+      const data = await response.json();
+      
+      const blob = new Blob([JSON.stringify(data)], { type: 'application/json' });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'ehtp.geojson';
+      link.click();
+      window.URL.revokeObjectURL(url);
+      setShowExportMenu(false);
+    } catch (error) {
+      setError('Erreur lors de l\'export en GeoJSON');
+      console.error('Erreur GeoJSON:', error);
+    }
+  };
+
+  // Fonction pour exporter la couche en Shapefile
+  const exportAsShapefile = async () => {
+    try {
+      const response = await fetch('/geoserver/webSig/ows?service=WFS&version=1.0.0&request=GetFeature&typeName=webSig:ehtpshp&outputFormat=SHAPE-ZIP');
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'ehtp.zip';
+      link.click();
+      window.URL.revokeObjectURL(url);
+      setShowExportMenu(false);
+    } catch (error) {
+      setError('Erreur lors de l\'export en Shapefile');
+      console.error('Erreur Shapefile:', error);
+    }
+  };
 
   useEffect(() => {
     // Configuration de la source WMS
@@ -194,18 +267,17 @@ function CartePage() {
 
   return (
     <div>
-      <h2>Carte de l'EHTP - 2D / 3D Switch</h2>
+      <h2>Carte de l'EHTP</h2>
       
-      <div style={{ margin: '10px' }}>
-        <div 
-          style={{ 
-            display: 'inline-flex',
-            backgroundColor: '#f0f0f0',
-            borderRadius: '8px',
-            padding: '2px',
-            border: '1px solid #ddd'
-          }}
-        >
+      <div style={{ margin: '10px', display: 'flex', gap: '10px', alignItems: 'center' }}>
+        {/* Switch 2D/3D */}
+        <div style={{ 
+          display: 'inline-flex',
+          backgroundColor: '#f0f0f0',
+          borderRadius: '8px',
+          padding: '2px',
+          border: '1px solid #ddd'
+        }}>
           <button 
             onClick={handleToggle}
             disabled={loading}
@@ -241,9 +313,155 @@ function CartePage() {
             3D
           </button>
         </div>
-        
+
+        {/* Bouton Exporter (visible uniquement en mode 2D) */}
+        {!is3D && (
+          <div style={{ position: 'relative' }}>
+            <button
+              onClick={() => setShowExportMenu(!showExportMenu)}
+              onBlur={() => setTimeout(() => setShowExportMenu(false), 200)}
+              style={{
+                padding: '8px 16px',
+                backgroundColor: '#2196F3',
+                color: 'white',
+                border: 'none',
+                borderRadius: '6px',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '5px',
+                fontWeight: 'bold'
+              }}
+            >
+              Exporter
+              <span style={{ fontSize: '12px', marginLeft: '5px' }}>▼</span>
+            </button>
+            
+            {showExportMenu && (
+              <div
+                style={{
+                  position: 'absolute',
+                  top: '100%',
+                  left: '0',
+                  backgroundColor: 'white',
+                  border: '1px solid #ddd',
+                  borderRadius: '4px',
+                  boxShadow: '0 2px 5px rgba(0,0,0,0.2)',
+                  zIndex: 1000,
+                  minWidth: '200px',
+                  marginTop: '5px'
+                }}
+              >
+                <button
+                  onClick={exportAsImage}
+                  style={{
+                    display: 'block',
+                    width: '100%',
+                    padding: '8px 16px',
+                    border: 'none',
+                    borderBottom: '1px solid #eee',
+                    backgroundColor: 'white',
+                    color: '#333',
+                    textAlign: 'left',
+                    cursor: 'pointer',
+                    fontSize: '14px',
+                    fontWeight: 'normal'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.target.style.backgroundColor = '#f5f5f5';
+                    e.target.style.color = '#000';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.target.style.backgroundColor = 'white';
+                    e.target.style.color = '#333';
+                  }}
+                >
+                  Exporter en PNG
+                </button>
+                <button
+                  onClick={exportAsPDF}
+                  style={{
+                    display: 'block',
+                    width: '100%',
+                    padding: '8px 16px',
+                    border: 'none',
+                    borderBottom: '1px solid #eee',
+                    backgroundColor: 'white',
+                    color: '#333',
+                    textAlign: 'left',
+                    cursor: 'pointer',
+                    fontSize: '14px',
+                    fontWeight: 'normal'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.target.style.backgroundColor = '#f5f5f5';
+                    e.target.style.color = '#000';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.target.style.backgroundColor = 'white';
+                    e.target.style.color = '#333';
+                  }}
+                >
+                  Exporter en PDF
+                </button>
+                <button
+                  onClick={exportAsGeoJSON}
+                  style={{
+                    display: 'block',
+                    width: '100%',
+                    padding: '8px 16px',
+                    border: 'none',
+                    borderBottom: '1px solid #eee',
+                    backgroundColor: 'white',
+                    color: '#333',
+                    textAlign: 'left',
+                    cursor: 'pointer',
+                    fontSize: '14px',
+                    fontWeight: 'normal'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.target.style.backgroundColor = '#f5f5f5';
+                    e.target.style.color = '#000';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.target.style.backgroundColor = 'white';
+                    e.target.style.color = '#333';
+                  }}
+                >
+                  Exporter en GeoJSON
+                </button>
+                <button
+                  onClick={exportAsShapefile}
+                  style={{
+                    display: 'block',
+                    width: '100%',
+                    padding: '8px 16px',
+                    border: 'none',
+                    backgroundColor: 'white',
+                    color: '#333',
+                    textAlign: 'left',
+                    cursor: 'pointer',
+                    fontSize: '14px',
+                    fontWeight: 'normal'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.target.style.backgroundColor = '#f5f5f5';
+                    e.target.style.color = '#000';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.target.style.backgroundColor = 'white';
+                    e.target.style.color = '#333';
+                  }}
+                >
+                  Exporter en Shapefile
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
         {error && (
-          <span style={{ color: '#ff6b6b', fontSize: '14px' }}>
+          <span style={{ color: '#ff6b6b', fontSize: '14px', marginLeft: '10px' }}>
             {error}
           </span>
         )}
@@ -254,7 +472,8 @@ function CartePage() {
         style={{ 
           width: '100%', 
           height: '80vh',
-          border: '1px solid #ccc'
+          border: '1px solid #ccc',
+          marginTop: '10px'
         }}
       ></div>
     </div>
