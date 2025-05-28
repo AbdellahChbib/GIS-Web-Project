@@ -58,6 +58,17 @@ function CartePage() {
   const [selectedFeature, setSelectedFeature] = useState(null);
   const [highlightLayer, setHighlightLayer] = useState(null);
 
+  // Style de surbrillance amélioré
+  const highlightStyle = new Style({
+    fill: new Fill({
+      color: 'rgba(0, 123, 255, 0.3)'  // Bleu semi-transparent
+    }),
+    stroke: new Stroke({
+      color: '#007bff',  // Bleu plus foncé pour le contour
+      width: 3
+    })
+  });
+
   // Fonction pour exporter la carte en image
   const exportAsImage = () => {
     if (!olMap) return;
@@ -481,18 +492,10 @@ function CartePage() {
     setPopupOverlay(popup);
     ol2d.addOverlay(popup);
 
-    // Création de la couche de surbrillance
+    // Création de la couche de surbrillance avec le nouveau style
     const highlight = new VectorLayer({
       source: new VectorSource(),
-      style: new Style({
-        fill: new Fill({
-          color: 'rgba(0, 0, 255, 0.2)'  // Bleu avec 20% d'opacité
-        }),
-        stroke: new Stroke({
-          color: 'rgb(0, 0, 255)',  // Bleu plein
-          width: 2
-        })
-      }),
+      style: highlightStyle,
       zIndex: 1
     });
     setHighlightLayer(highlight);
@@ -543,14 +546,22 @@ function CartePage() {
           if (feature.properties) {
             console.log('Propriétés:', feature.properties);
             
-            // Créer le contenu de la popup
+            // Récupérer les informations de la feature
             const name = feature.properties.name || feature.properties.nom || 
                         feature.properties.NAME || feature.id || 'Sans nom';
+            const imageUrl = feature.properties.image_url || '/path/to/default-image.jpg';
             
+            // Créer le contenu de la popup avec image
             const popupContent = `
               <div class="popup-content">
-                <div class="popup-property">
-                  <span class="feature-name">${name}</span>
+                <div class="popup-header">
+                  <h3>${name}</h3>
+                </div>
+                <div class="popup-image">
+                  <img src="${imageUrl}" alt="${name}" />
+                </div>
+                <div class="popup-info">
+                  ${feature.properties.description || ''}
                 </div>
               </div>
             `;
@@ -631,21 +642,86 @@ function CartePage() {
       }
     });
 
-    // Mise à jour des styles CSS pour la popup
+    // Ajouter les styles CSS pour la nouvelle popup
     const style = document.createElement('style');
     style.textContent = `
+      .ol-popup {
+        position: absolute;
+        background-color: white;
+        box-shadow: 0 2px 12px rgba(0,0,0,0.15);
+        padding: 0;
+        border-radius: 6px;
+        border: none;
+        min-width: 280px;
+        max-width: 400px;
+        z-index: 1000;
+        transform: translate(-50%, -100%);
+        margin-top: -15px;
+      }
+
+      .ol-popup:after, .ol-popup:before {
+        top: 100%;
+        border: solid transparent;
+        content: "";
+        height: 0;
+        width: 0;
+        position: absolute;
+        pointer-events: none;
+      }
+
+      .ol-popup:after {
+        border-top-color: white;
+        border-width: 10px;
+        left: 50%;
+        margin-left: -10px;
+      }
+
       .popup-content {
-        padding: 8px;
-        min-width: 150px;
-        text-align: center;
+        overflow: hidden;
       }
-      .popup-property {
-        margin: 5px 0;
+
+      .popup-header {
+        background-color: #2c3e50;
+        color: white;
+        padding: 10px 15px;
+        border-radius: 6px 6px 0 0;
       }
-      .feature-name {
+
+      .popup-header h3 {
+        margin: 0;
         font-size: 16px;
         font-weight: 500;
-        color: #2196F3;
+      }
+
+      .popup-image {
+        width: 100%;
+        height: 200px;
+        overflow: hidden;
+        position: relative;
+      }
+
+      .popup-image img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+      }
+
+      .popup-info {
+        padding: 15px;
+        font-size: 14px;
+        color: #333;
+        line-height: 1.4;
+      }
+
+      /* Animation pour la surbrillance */
+      .highlight-animation {
+        animation: highlightPulse 2s infinite;
+      }
+
+      @keyframes highlightPulse {
+        0% { opacity: 0.6; }
+        50% { opacity: 0.8; }
+        100% { opacity: 0.6; }
       }
     `;
     document.head.appendChild(style);
@@ -1049,88 +1125,6 @@ function CartePage() {
         {/* Élément popup */}
         <div ref={popupRef} className="ol-popup"></div>
       </div>
-
-      {/* Styles CSS pour les tooltips de mesure */}
-      <style>
-        {`
-          .ol-tooltip {
-            position: relative;
-            background: rgba(0, 0, 0, 0.5);
-            border-radius: 4px;
-            color: white;
-            padding: 4px 8px;
-            opacity: 0.7;
-            white-space: nowrap;
-            font-size: 12px;
-          }
-          .ol-tooltip-measure {
-            opacity: 1;
-            font-weight: bold;
-          }
-          .ol-tooltip-static {
-            background-color: #ffcc33;
-            color: black;
-            border: 1px solid white;
-          }
-          .ol-popup {
-            position: absolute;
-            background-color: white;
-            box-shadow: 0 2px 12px rgba(0,0,0,0.3);
-            padding: 15px;
-            border-radius: 10px;
-            border: 1px solid #cccccc;
-            min-width: 280px;
-            max-width: 400px;
-            z-index: 1000;
-            font-family: Arial, sans-serif;
-            transform: translate(-50%, -100%);
-            margin-top: -10px;
-          }
-
-          .ol-popup:after, .ol-popup:before {
-            top: 100%;
-            border: solid transparent;
-            content: "";
-            height: 0;
-            width: 0;
-            position: absolute;
-            pointer-events: none;
-          }
-
-          .ol-popup:after {
-            border-top-color: white;
-            border-width: 10px;
-            left: 50%;
-            margin-left: -10px;
-          }
-
-          .ol-popup:before {
-            border-top-color: #cccccc;
-            border-width: 11px;
-            left: 50%;
-            margin-left: -11px;
-          }
-
-          .popup-content {
-            font-size: 14px;
-            line-height: 1.6;
-            color: #333;
-            max-height: 300px;
-            overflow-y: auto;
-            padding: 5px;
-          }
-
-          .popup-content strong {
-            color: #2196F3;
-            font-weight: 600;
-            margin-right: 5px;
-          }
-
-          .popup-content br {
-            margin-bottom: 5px;
-          }
-        `}
-      </style>
     </div>
   );
 }
