@@ -351,6 +351,41 @@ function CartePage() {
     }, Cesium.ScreenSpaceEventType.RIGHT_CLICK);
   };
 
+  // Fonction pour formater le nom de fichier
+  const formatImageFileName = (name) => {
+    return name
+      .toLowerCase()
+      .replace(/\s+/g, '-')     // Remplace les espaces par des tirets
+      .replace(/[^a-z0-9-]/g, '') // Enlève les caractères spéciaux
+      .trim();
+  };
+
+  // Fonction pour vérifier si une image existe
+  const getImageUrl = (name) => {
+    const baseImagePath = '/images/entities/';
+    const formattedName = formatImageFileName(name);
+    
+    // Liste des extensions d'image à essayer
+    const extensions = ['jpg', 'jpeg', 'png'];
+    
+    // On retourne le chemin de l'image avec la première extension trouvée
+    for (const ext of extensions) {
+      const imagePath = `${baseImagePath}${formattedName}.${ext}`;
+      try {
+        // On vérifie si l'image existe en essayant de la charger
+        const img = new Image();
+        img.src = imagePath;
+        return imagePath;
+      } catch (error) {
+        console.log(`Image non trouvée avec l'extension ${ext}`);
+        continue;
+      }
+    }
+    
+    // Image par défaut si aucune image correspondante n'est trouvée
+    return '/images/entities/default.jpg';
+  };
+
   useEffect(() => {
     // Configuration de la source WMS
     const wmsSource = new ImageWMS({
@@ -549,7 +584,9 @@ function CartePage() {
             // Récupérer les informations de la feature
             const name = feature.properties.name || feature.properties.nom || 
                         feature.properties.NAME || feature.id || 'Sans nom';
-            const imageUrl = feature.properties.image_url || '/path/to/default-image.jpg';
+            
+            // Obtenir l'URL de l'image correspondante
+            const imageUrl = getImageUrl(name);
             
             // Créer le contenu de la popup avec image
             const popupContent = `
@@ -558,7 +595,9 @@ function CartePage() {
                   <h3>${name}</h3>
                 </div>
                 <div class="popup-image">
-                  <img src="${imageUrl}" alt="${name}" />
+                  <img src="${imageUrl}" 
+                       alt="${name}"
+                       onerror="this.src='/images/entities/default.jpg';" />
                 </div>
                 <div class="popup-info">
                   ${feature.properties.description || ''}
