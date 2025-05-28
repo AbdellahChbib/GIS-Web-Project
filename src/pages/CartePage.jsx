@@ -17,6 +17,7 @@ import { Vector as VectorSource } from 'ol/source';
 import { Circle as CircleStyle, Fill, Stroke, Style } from 'ol/style';
 import { getArea, getLength } from 'ol/sphere';
 import Overlay from 'ol/Overlay';
+import GeoJSON from 'ol/format/GeoJSON';
 
 // Configuration globale de Cesium
 window.Cesium = Cesium;
@@ -52,6 +53,10 @@ function CartePage() {
     })
   }));
   const [measureOverlays, setMeasureOverlays] = useState([]);
+  const [popupOverlay, setPopupOverlay] = useState(null);
+  const popupRef = useRef(null);
+  const [selectedFeature, setSelectedFeature] = useState(null);
+  const [highlightLayer, setHighlightLayer] = useState(null);
 
   // Fonction pour exporter la carte en image
   const exportAsImage = () => {
@@ -466,6 +471,185 @@ function CartePage() {
     // Ajouter la couche de mesure
     ol2d.addLayer(measureLayer);
 
+    // Création de la popup
+    const popup = new Overlay({
+      element: popupRef.current,
+      positioning: 'bottom-center',
+      stopEvent: false,
+      offset: [0, -10]
+    });
+    setPopupOverlay(popup);
+    ol2d.addOverlay(popup);
+
+    // Création de la couche de surbrillance
+    const highlight = new VectorLayer({
+      source: new VectorSource(),
+      style: new Style({
+        fill: new Fill({
+          color: 'rgba(0, 0, 255, 0.2)'  // Bleu avec 20% d'opacité
+        }),
+        stroke: new Stroke({
+          color: 'rgb(0, 0, 255)',  // Bleu plein
+          width: 2
+        })
+      }),
+      zIndex: 1
+    });
+    setHighlightLayer(highlight);
+    ol2d.addLayer(highlight);
+
+    // Gestionnaire de clic pour afficher la popup et mettre en surbrillance la feature
+    ol2d.on('singleclick', async (evt) => {
+      if (is3D) {
+        return;
+      }
+
+      const coordinate = evt.coordinate;
+      const clickPoint = coordinate;
+      
+      // Créer une petite zone autour du point de clic (buffer)
+      const buffer = 5;
+      const bbox = [
+        clickPoint[0] - buffer,
+        clickPoint[1] - buffer,
+        clickPoint[0] + buffer,
+        clickPoint[1] + buffer
+      ].join(',');
+
+      // Construire l'URL WFS
+      const wfsUrl = '/geoserver/webSig/ows?' +
+        'service=WFS&' +
+        'version=1.0.0&' +
+        'request=GetFeature&' +
+        'typeName=webSig:ehtpshp&' +
+        'outputFormat=application/json&' +
+        'srsName=EPSG:3857&' +
+        `bbox=${bbox},EPSG:3857`;
+
+      console.log('URL WFS:', wfsUrl);
+
+      try {
+        const response = await fetch(wfsUrl);
+        const contentType = response.headers.get('content-type');
+        console.log('Type de contenu:', contentType);
+
+        const data = await response.json();
+        console.log('Données WFS reçues:', data);
+
+        if (data.features && data.features.length > 0) {
+          const feature = data.features[0];
+          console.log('Feature trouvée:', feature);
+
+          if (feature.properties) {
+            console.log('Propriétés:', feature.properties);
+            
+            // Créer le contenu de la popup
+            const name = feature.properties.name || feature.properties.nom || 
+                        feature.properties.NAME || feature.id || 'Sans nom';
+            
+            const popupContent = `
+              <div class="popup-content">
+                <div class="popup-property">
+                  <span class="feature-name">${name}</span>
+                </div>
+              </div>
+            `;
+
+            // Mettre à jour la popup
+            popupRef.current.innerHTML = popupContent;
+            popup.setPosition(coordinate);
+
+            // Mettre à jour la feature en surbrillance
+            if (feature.geometry) {
+              try {
+                // S'assurer que les coordonnées sont des nombres valides
+                const cleanGeometry = {
+                  ...feature,
+                  geometry: {
+                    type: feature.geometry.type,
+                    coordinates: JSON.parse(JSON.stringify(feature.geometry.coordinates))
+                  }
+                };
+
+                // Créer la feature avec la géométrie nettoyée
+                const format = new GeoJSON();
+                let highlightFeature;
+
+                try {
+                  // Essayer d'abord avec la projection d'origine
+                  highlightFeature = format.readFeature(cleanGeometry, {
+                    featureProjection: 'EPSG:3857'
+                  });
+                } catch (e) {
+                  console.log('Tentative avec conversion de projection:', e);
+                  // Si ça échoue, essayer avec une conversion explicite
+                  highlightFeature = format.readFeature(cleanGeometry, {
+                    dataProjection: 'EPSG:4326',
+                    featureProjection: 'EPSG:3857'
+                  });
+                }
+
+                if (highlightFeature) {
+                  const source = highlight.getSource();
+                  source.clear();
+                  source.addFeature(highlightFeature);
+                  setSelectedFeature(highlightFeature);
+                }
+              } catch (error) {
+                console.error('Erreur détaillée lors de la création de la feature de surbrillance:', error);
+                console.log('Géométrie problématique:', feature.geometry);
+                highlight.getSource().clear();
+                setSelectedFeature(null);
+              }
+            }
+          }
+        } else {
+          console.log('Aucune feature trouvée à cet endroit');
+          popup.setPosition(undefined);
+          highlight.getSource().clear();
+          setSelectedFeature(null);
+        }
+      } catch (error) {
+        console.error('Erreur lors de la requête WFS:', error);
+        popup.setPosition(undefined);
+        highlight.getSource().clear();
+        setSelectedFeature(null);
+      }
+    });
+
+    // Gestionnaire de clic pour fermer la popup et effacer la surbrillance en cliquant ailleurs
+    ol2d.on('click', (evt) => {
+      if (is3D) {
+        return;
+      }
+
+      const clickedOnPopup = evt.originalEvent.target.closest('.popup-content');
+      if (!clickedOnPopup) {
+        popup.setPosition(undefined);
+        highlight.getSource().clear();
+        setSelectedFeature(null);
+      }
+    });
+
+    // Mise à jour des styles CSS pour la popup
+    const style = document.createElement('style');
+    style.textContent = `
+      .popup-content {
+        padding: 8px;
+        min-width: 150px;
+        text-align: center;
+      }
+      .popup-property {
+        margin: 5px 0;
+      }
+      .feature-name {
+        font-size: 16px;
+        font-weight: 500;
+        color: #2196F3;
+      }
+    `;
+    document.head.appendChild(style);
+
     // Cleanup
     return () => {
       clearAllMeasurements();
@@ -480,6 +664,12 @@ function CartePage() {
         scene.primitives.remove(tileset);
       }
       ol2d.setTarget(null);
+      if (popup) {
+        ol2d.removeOverlay(popup);
+      }
+      if (highlight) {
+        ol2d.removeLayer(highlight);
+      }
     };
   }, []);
 
@@ -855,7 +1045,10 @@ function CartePage() {
           border: '1px solid #ccc',
           marginTop: '10px'
         }}
-      ></div>
+      >
+        {/* Élément popup */}
+        <div ref={popupRef} className="ol-popup"></div>
+      </div>
 
       {/* Styles CSS pour les tooltips de mesure */}
       <style>
@@ -878,6 +1071,63 @@ function CartePage() {
             background-color: #ffcc33;
             color: black;
             border: 1px solid white;
+          }
+          .ol-popup {
+            position: absolute;
+            background-color: white;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.3);
+            padding: 15px;
+            border-radius: 10px;
+            border: 1px solid #cccccc;
+            min-width: 280px;
+            max-width: 400px;
+            z-index: 1000;
+            font-family: Arial, sans-serif;
+            transform: translate(-50%, -100%);
+            margin-top: -10px;
+          }
+
+          .ol-popup:after, .ol-popup:before {
+            top: 100%;
+            border: solid transparent;
+            content: "";
+            height: 0;
+            width: 0;
+            position: absolute;
+            pointer-events: none;
+          }
+
+          .ol-popup:after {
+            border-top-color: white;
+            border-width: 10px;
+            left: 50%;
+            margin-left: -10px;
+          }
+
+          .ol-popup:before {
+            border-top-color: #cccccc;
+            border-width: 11px;
+            left: 50%;
+            margin-left: -11px;
+          }
+
+          .popup-content {
+            font-size: 14px;
+            line-height: 1.6;
+            color: #333;
+            max-height: 300px;
+            overflow-y: auto;
+            padding: 5px;
+          }
+
+          .popup-content strong {
+            color: #2196F3;
+            font-weight: 600;
+            margin-right: 5px;
+          }
+
+          .popup-content br {
+            margin-bottom: 5px;
           }
         `}
       </style>
