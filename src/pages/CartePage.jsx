@@ -57,6 +57,8 @@ function CartePage() {
   const popupRef = useRef(null);
   const [selectedFeature, setSelectedFeature] = useState(null);
   const [highlightLayer, setHighlightLayer] = useState(null);
+  const [hoverOverlay, setHoverOverlay] = useState(null);
+  const hoverRef = useRef(null);
 
   // Style de surbrillance amélioré
   const highlightStyle = new Style({
@@ -67,6 +69,19 @@ function CartePage() {
       color: '#007bff',  // Bleu plus foncé pour le contour
       width: 3
     })
+  });
+
+  // Style de surbrillance pour le hover
+  const hoverStyle = new Style({
+    fill: new Fill({
+      color: 'rgba(0, 153, 255, 0.4)'  // Bleu plus vif et plus opaque
+    }),
+    stroke: new Stroke({
+      color: '#0099ff',  // Bleu vif
+      width: 3,          // Bordure plus épaisse
+      lineDash: null     // Ligne continue
+    }),
+    zIndex: 2           // S'assurer que c'est au-dessus des autres couches
   });
 
   // Fonction pour exporter la carte en image
@@ -387,7 +402,7 @@ function CartePage() {
   };
 
   useEffect(() => {
-    // Configuration de la source WMS
+    // Configuration de la source WMS principale
     const wmsSource = new ImageWMS({
       url: '/geoserver/webSig/wms',
       params: {
@@ -399,20 +414,41 @@ function CartePage() {
       crossOrigin: 'anonymous'
     });
 
+    // Configuration de la source WMS pour le hover
+    const hoverWmsSource = new ImageWMS({
+      url: '/geoserver/webSig/wms',
+      params: {
+        'LAYERS': 'webSig:ehtpshp',
+        'FORMAT': 'image/png',
+        'TRANSPARENT': true,
+        'STYLES': 'highlight',  // Style de surbrillance défini dans GeoServer
+        'CQL_FILTER': 'FALSE'   // Par défaut, ne montre rien
+      },
+      serverType: 'geoserver',
+      crossOrigin: 'anonymous'
+    });
+
     // Couche de fond OSM
     const baseLayer = new TileLayer({
       source: new OSM(),
     });
 
-    // Couche WMS
+    // Couche WMS principale
     const wmsLayer = new ImageLayer({
-      source: wmsSource
+      source: wmsSource,
+      zIndex: 1
+    });
+
+    // Couche WMS pour le hover
+    const hoverLayer = new ImageLayer({
+      source: hoverWmsSource,
+      zIndex: 2
     });
 
     // Création de la carte 2D
     const ol2d = new Map({
       target: mapRef.current,
-      layers: [baseLayer, wmsLayer],
+      layers: [baseLayer, wmsLayer, hoverLayer],
       view: new View({
         center: fromLonLat([-7.650788, 33.547011]),
         zoom: 17,
@@ -536,22 +572,22 @@ function CartePage() {
     setHighlightLayer(highlight);
     ol2d.addLayer(highlight);
 
-    // Gestionnaire de clic pour afficher la popup et mettre en surbrillance la feature
-    ol2d.on('singleclick', async (evt) => {
-      if (is3D) {
-        return;
-      }
+    // Variable pour stocker l'ID de la feature actuellement survolée
+    let currentHoverFeatureId = null;
+
+    // Gestionnaire de survol
+    ol2d.on('pointermove', async (evt) => {
+      if (is3D) return;
 
       const coordinate = evt.coordinate;
-      const clickPoint = coordinate;
       
-      // Créer une petite zone autour du point de clic (buffer)
+      // Créer une petite zone autour du point de survol
       const buffer = 5;
       const bbox = [
-        clickPoint[0] - buffer,
-        clickPoint[1] - buffer,
-        clickPoint[0] + buffer,
-        clickPoint[1] + buffer
+        coordinate[0] - buffer,
+        coordinate[1] - buffer,
+        coordinate[0] + buffer,
+        coordinate[1] + buffer
       ].join(',');
 
       // Construire l'URL WFS
@@ -564,31 +600,35 @@ function CartePage() {
         'srsName=EPSG:3857&' +
         `bbox=${bbox},EPSG:3857`;
 
-      console.log('URL WFS:', wfsUrl);
-
       try {
         const response = await fetch(wfsUrl);
-        const contentType = response.headers.get('content-type');
-        console.log('Type de contenu:', contentType);
-
         const data = await response.json();
-        console.log('Données WFS reçues:', data);
 
         if (data.features && data.features.length > 0) {
           const feature = data.features[0];
-          console.log('Feature trouvée:', feature);
+          const featureId = feature.id || feature.properties?.id;
+          
+          if (currentHoverFeatureId === featureId) {
+            return;
+          }
+          
+          currentHoverFeatureId = featureId;
+          ol2d.getViewport().style.cursor = 'pointer';
 
+          // Mettre à jour le filtre de la couche de hover
+          if (featureId) {
+            hoverWmsSource.updateParams({
+              'CQL_FILTER': `id = '${featureId}'`
+            });
+          }
+
+          // Afficher le popup
           if (feature.properties) {
-            console.log('Propriétés:', feature.properties);
-            
-            // Récupérer les informations de la feature
             const name = feature.properties.name || feature.properties.nom || 
                         feature.properties.NAME || feature.id || 'Sans nom';
             
-            // Obtenir l'URL de l'image correspondante
             const imageUrl = getImageUrl(name);
             
-            // Créer le contenu de la popup avec image
             const popupContent = `
               <div class="popup-content">
                 <div class="popup-header">
@@ -605,83 +645,43 @@ function CartePage() {
               </div>
             `;
 
-            // Mettre à jour la popup
-            popupRef.current.innerHTML = popupContent;
-            popup.setPosition(coordinate);
-
-            // Mettre à jour la feature en surbrillance
-            if (feature.geometry) {
-              try {
-                // S'assurer que les coordonnées sont des nombres valides
-                const cleanGeometry = {
-                  ...feature,
-                  geometry: {
-                    type: feature.geometry.type,
-                    coordinates: JSON.parse(JSON.stringify(feature.geometry.coordinates))
-                  }
-                };
-
-                // Créer la feature avec la géométrie nettoyée
-                const format = new GeoJSON();
-                let highlightFeature;
-
-                try {
-                  // Essayer d'abord avec la projection d'origine
-                  highlightFeature = format.readFeature(cleanGeometry, {
-                    featureProjection: 'EPSG:3857'
-                  });
-                } catch (e) {
-                  console.log('Tentative avec conversion de projection:', e);
-                  // Si ça échoue, essayer avec une conversion explicite
-                  highlightFeature = format.readFeature(cleanGeometry, {
-                    dataProjection: 'EPSG:4326',
-                    featureProjection: 'EPSG:3857'
-                  });
-                }
-
-                if (highlightFeature) {
-                  const source = highlight.getSource();
-                  source.clear();
-                  source.addFeature(highlightFeature);
-                  setSelectedFeature(highlightFeature);
-                }
-              } catch (error) {
-                console.error('Erreur détaillée lors de la création de la feature de surbrillance:', error);
-                console.log('Géométrie problématique:', feature.geometry);
-                highlight.getSource().clear();
-                setSelectedFeature(null);
-              }
+            if (popupRef.current) {
+              popupRef.current.innerHTML = popupContent;
+              popup.setPosition(coordinate);
             }
           }
         } else {
-          console.log('Aucune feature trouvée à cet endroit');
+          currentHoverFeatureId = null;
+          ol2d.getViewport().style.cursor = '';
           popup.setPosition(undefined);
-          highlight.getSource().clear();
-          setSelectedFeature(null);
+          // Réinitialiser le filtre de la couche de hover
+          hoverWmsSource.updateParams({
+            'CQL_FILTER': 'FALSE'
+          });
         }
       } catch (error) {
-        console.error('Erreur lors de la requête WFS:', error);
+        currentHoverFeatureId = null;
+        console.error('Erreur lors de la requête WFS pour le hover:', error);
         popup.setPosition(undefined);
-        highlight.getSource().clear();
-        setSelectedFeature(null);
+        // Réinitialiser le filtre de la couche de hover
+        hoverWmsSource.updateParams({
+          'CQL_FILTER': 'FALSE'
+        });
       }
     });
 
-    // Gestionnaire de clic pour fermer la popup et effacer la surbrillance en cliquant ailleurs
-    ol2d.on('click', (evt) => {
-      if (is3D) {
-        return;
-      }
-
-      const clickedOnPopup = evt.originalEvent.target.closest('.popup-content');
-      if (!clickedOnPopup) {
-        popup.setPosition(undefined);
-        highlight.getSource().clear();
-        setSelectedFeature(null);
-      }
+    // Gestionnaire pour effacer le hover quand la souris quitte la carte
+    ol2d.getViewport().addEventListener('mouseout', () => {
+      currentHoverFeatureId = null;
+      ol2d.getViewport().style.cursor = '';
+      popup.setPosition(undefined);
+      // Réinitialiser le filtre de la couche de hover
+      hoverWmsSource.updateParams({
+        'CQL_FILTER': 'FALSE'
+      });
     });
 
-    // Ajouter les styles CSS pour la nouvelle popup
+    // Mettre à jour les styles CSS
     const style = document.createElement('style');
     style.textContent = `
       .ol-popup {
@@ -693,43 +693,30 @@ function CartePage() {
         border: none;
         min-width: 280px;
         max-width: 400px;
+        max-height: 80vh;
+        overflow-y: auto;
         z-index: 1000;
-        transform: translate(-50%, -100%);
-        margin-top: -15px;
-      }
-
-      .ol-popup:after, .ol-popup:before {
-        top: 100%;
-        border: solid transparent;
-        content: "";
-        height: 0;
-        width: 0;
-        position: absolute;
-        pointer-events: none;
-      }
-
-      .ol-popup:after {
-        border-top-color: white;
-        border-width: 10px;
-        left: 50%;
-        margin-left: -10px;
+        transition: opacity 0.2s ease-in-out;
+        animation: popupFadeIn 0.2s ease-out;
       }
 
       .popup-content {
         overflow: hidden;
+        max-height: calc(80vh - 40px);
       }
 
       .popup-header {
         background-color: #2c3e50;
         color: white;
-        padding: 10px 15px;
+        padding: 15px;
         border-radius: 6px 6px 0 0;
       }
 
       .popup-header h3 {
         margin: 0;
-        font-size: 16px;
+        font-size: 18px;
         font-weight: 500;
+        color: white;
       }
 
       .popup-image {
@@ -737,6 +724,7 @@ function CartePage() {
         height: 200px;
         overflow: hidden;
         position: relative;
+        border-bottom: 1px solid #eee;
       }
 
       .popup-image img {
@@ -749,18 +737,73 @@ function CartePage() {
         padding: 15px;
         font-size: 14px;
         color: #333;
-        line-height: 1.4;
+        line-height: 1.5;
       }
 
-      /* Animation pour la surbrillance */
-      .highlight-animation {
-        animation: highlightPulse 2s infinite;
+      /* Style de la barre de défilement */
+      .ol-popup::-webkit-scrollbar {
+        width: 8px;
       }
 
-      @keyframes highlightPulse {
-        0% { opacity: 0.6; }
-        50% { opacity: 0.8; }
-        100% { opacity: 0.6; }
+      .ol-popup::-webkit-scrollbar-track {
+        background: #f1f1f1;
+        border-radius: 4px;
+      }
+
+      .ol-popup::-webkit-scrollbar-thumb {
+        background: #888;
+        border-radius: 4px;
+      }
+
+      .ol-popup::-webkit-scrollbar-thumb:hover {
+        background: #555;
+      }
+
+      /* Animation d'apparition du popup */
+      .ol-popup {
+        animation: popupFadeIn 0.3s ease-out;
+      }
+
+      @keyframes popupFadeIn {
+        from {
+          opacity: 0;
+          transform: translateY(-10px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      .hover-popup {
+        background-color: rgba(0, 0, 0, 0.8);
+        border-radius: 4px;
+        color: white;
+        padding: 8px 12px;
+        font-size: 14px;
+        pointer-events: none;
+        white-space: nowrap;
+        transform: translateY(-5px);
+        animation: hoverFadeIn 0.2s ease-out;
+      }
+
+      .hover-content {
+        margin: 0;
+      }
+
+      .hover-content span {
+        font-weight: 500;
+      }
+
+      @keyframes hoverFadeIn {
+        from {
+          opacity: 0;
+          transform: translateY(0);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(-5px);
+        }
       }
     `;
     document.head.appendChild(style);
@@ -785,6 +828,10 @@ function CartePage() {
       if (highlight) {
         ol2d.removeLayer(highlight);
       }
+      if (hoverLayer) {
+        ol2d.removeLayer(hoverLayer);
+      }
+      currentHoverFeatureId = null;
     };
   }, []);
 
@@ -1161,8 +1208,8 @@ function CartePage() {
           marginTop: '10px'
         }}
       >
-        {/* Élément popup */}
         <div ref={popupRef} className="ol-popup"></div>
+        <div ref={hoverRef} className="ol-popup hover-popup"></div>
       </div>
     </div>
   );
